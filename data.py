@@ -1,4 +1,7 @@
-from models import Grafo
+from typing import Optional
+
+from models import Arista, Grafo, Nodo
+
 
 MOCK_GRAFO = Grafo(
     nodos=[
@@ -44,3 +47,24 @@ MOCK_GRAFO = Grafo(
         {"id": "e18", "origen": "INS-CONSERVANTE", "destino": "PRV-QUIM", "tipo": "REQUIERE"},
     ],
 )
+
+def buscar_nodo(id: str) -> Optional[Nodo]:
+    return next((nodo for nodo in MOCK_GRAFO.nodos if nodo.id == id), None)
+
+
+def existe_nodo(id: str) -> bool:
+    return buscar_nodo(id) is not None
+
+
+def siguiente_arista_id() -> str:
+    return f"e{len(MOCK_GRAFO.aristas) + 1:02d}"
+
+
+def agregar_nodo(nodo: Nodo) -> None:
+    MOCK_GRAFO.nodos.append(nodo)
+
+
+def agregar_arista(origen: str, destino: str) -> Arista:
+    arista = Arista(id=siguiente_arista_id(), origen=origen, destino=destino, tipo="REQUIERE")
+    MOCK_GRAFO.aristas.append(arista)
+    return arista
