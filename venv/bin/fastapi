@@ -1,8 +1,0 @@
-#!/Users/millerossasamboni/Programacion/ITM/2026-II/matematicas_para_info/grafos_math_back/venv/bin/python3
-# -*- coding: utf-8 -*-
-import re
-import sys
-from fastapi.cli import main
-if __name__ == '__main__':
-    sys.argv[0] = re.sub(r'(-script\.pyw|\.exe)?$', '', sys.argv[0])
-    sys.exit(main())
