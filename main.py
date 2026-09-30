@@ -38,3 +38,7 @@ def listar_insumos():
 @app.get("/proveedores", response_model=List[Nodo])
 def listar_proveedores():
     return [nodo for nodo in MOCK_GRAFO.nodos if nodo.capa == "proveedor"]
+
+@app.get("/aristas", response_model=List[Nodo])
+def listar_insumos():
+    return [nodo for nodo in MOCK_GRAFO.aristas]
