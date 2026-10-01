@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from data import MOCK_GRAFO
-from models import Nodo
+from models import Arista, Nodo
 
 app = FastAPI()
 
@@ -39,6 +39,6 @@ def listar_insumos():
 def listar_proveedores():
     return [nodo for nodo in MOCK_GRAFO.nodos if nodo.capa == "proveedor"]
 
-@app.get("/aristas", response_model=List[Nodo])
-def listar_insumos():
-    return [nodo for nodo in MOCK_GRAFO.aristas]
+@app.get("/aristas", response_model=List[Arista])
+def listar_aristas():
+    return MOCK_GRAFO.aristas
