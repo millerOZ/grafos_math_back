@@ -10,10 +10,11 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://grafos-math.netlify.app"],
+    #allow_origins=['http://localhost:5173'],
+    allow_origins=['https://grafos-math.netlify.app'],
     allow_credentials=False,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"], 
 )
 
 
