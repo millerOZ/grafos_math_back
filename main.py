@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import FastAPI
+<<<<<<< HEAD
 from fastapi.middleware.cors import CORSMiddleware
 
 from data import MOCK_GRAFO
@@ -17,6 +18,14 @@ app.add_middleware(
     allow_headers=["*"], 
 )
 
+=======
+
+from data import MOCK_GRAFO
+from models import Nodo
+
+app = FastAPI()
+
+>>>>>>> a07d4d6 (resolver conflict)
 
 @app.get("/")
 def read_root():
@@ -36,7 +45,10 @@ def listar_insumos():
 @app.get("/proveedores", response_model=List[Nodo])
 def listar_proveedores():
     return [nodo for nodo in MOCK_GRAFO.nodos if nodo.capa == "proveedor"]
+<<<<<<< HEAD
 
 @app.get("/aristas", response_model=List[Arista])
 def listar_aristas():
     return MOCK_GRAFO.aristas
+=======
+>>>>>>> a07d4d6 (resolver conflict)
