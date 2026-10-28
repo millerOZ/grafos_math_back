@@ -79,3 +79,63 @@ El cliente comprende qué falla, qué se afecta y cómo debería organizar produ
 
 Durante la demo se carga una dependencia, se simula una indisponibilidad y se identifican consecuencias. Después se muestra un orden válido o una alerta clara de ciclo.
 
+---
+
+## Disponibilidad e impacto (producto)
+
+Cuando un proveedor o un insumo deja de entregar, la panadería necesita saber qué productos o procesos quedan comprometidos. La API responde esa consulta de negocio.
+
+### Qué significa “alcanzar” en este negocio
+
+Alcanzar significa **“le llega la falla”**. Funciona como fichas de dominó.
+
+Si la Distribuidora de químicos deja de entregar:
+
+```
+Distribuidora de químicos  ──►  Conservante  ──►  Ponqué
+                                            └──►  Tostadas
+```
+
+1. Sin la distribuidora no hay **conservante**: la falla lo alcanza directamente.
+2. Sin conservante no se pueden hacer el **ponqué** ni las **tostadas**: la falla los alcanza a través del conservante.
+3. El **pan** no usa conservante, así que la falla **no lo alcanza** y se sigue produciendo.
+
+Es decir, lo que se alcanza desde un elemento es todo lo que se cae si ese elemento falla.
+
+La flecha del grafo es `A REQUIERE B` (producto → insumo → proveedor). El impacto se calcula **en contra** de esa flecha: del elemento no disponible hacia quienes lo necesitan.
+
+### Endpoint
+
+```
+GET /impacto/{elemento_id}
+```
+
+| Caso | HTTP | Significado |
+|---|---|---|
+| `inexistente` | 404 | El id no está en el catálogo |
+| `sin_dependencias` | 200 | Existe, pero nadie depende de él |
+| `afecta_cadena` | 200 | Hay elementos alcanzados en `afectados` |
+
+### Piezas del backend
+
+| Archivo | Rol |
+|---|---|
+| `impacto.py` | Disponibilidad e impacto: distingue los tres casos y arma la respuesta. |
+| `recorrido.py` | Recorrido BFS propio sobre la red de dependencias. |
+| `main.py` | Expone `GET /impacto/{id}` junto al resto de la API. |
+| `models.py` | Contratos de respuesta (`ImpactoResponse`, etc.). |
+
+La interfaz debe consumir `GET /impacto/{id}` y usar `afectados` para resaltar la cadena.
+
+### Cómo probar
+
+```powershell
+py -m uvicorn main:app --port 8000
+```
+
+Abrir http://127.0.0.1:8000/docs y probar, por ejemplo:
+
+- `/impacto/PRV-MATERIAPRIMA` → afecta cadena
+- `/impacto/PRD-PAN` → sin dependencias (nadie requiere al producto)
+- `/impacto/NO-EXISTE` → 404
+
