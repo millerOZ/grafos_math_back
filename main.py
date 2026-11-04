@@ -113,6 +113,6 @@ def crear_producto(datos: ProductoCreate):
 
     nodo = Nodo(id=datos.id, nombre=datos.nombre, capa="producto", categoria=datos.categoria)
     agregar_nodo(nodo)
-    for insumo in insumos:
+    for insumo in insumos: 
         agregar_arista(origen=nodo.id, destino=insumo.id)
     return nodo
