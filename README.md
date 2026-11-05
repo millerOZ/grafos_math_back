@@ -139,3 +139,51 @@ Abrir http://127.0.0.1:8000/docs y probar, por ejemplo:
 - `/impacto/PRD-PAN` → sin dependencias (nadie requiere al producto)
 - `/impacto/NO-EXISTE` → 404
 
+
+---
+
+## Registrar procesos (catálogo, F1)
+
+Un **proceso** es un paso interno de producción: algo que la empresa *hace*, no que compra
+(amasar, fermentar, hornear, empacar). Si se compra es insumo; si se hace es proceso.
+
+```
+POST /procesos
+{"id": "PRC-HORNEAR", "nombre": "Hornear", "categoria": "Panadería"}
+```
+
+Los datos de ejemplo modelan la preparación del **pan tajado** con procesos
+(los demás productos siguen yendo directo a sus insumos):
+
+```
+Pan tajado → Empacar → Tajar → Hornear → Fermentar → Amasar → Harina, Levadura
+                └──► Bolsas de empaque
+```
+
+Por eso, si falla la levadura, la falla recorre los cinco procesos hasta llegar al pan
+(`GET /impacto/INS-LEVADURA`).
+
+Se crea sin conexiones (201). Si el id ya existe en cualquier capa responde 409; si faltan
+datos, 422. `GET /procesos` lista los procesos. Las conexiones se registran luego con `POST /dependencias`.
+
+## Registrar dependencias (catálogo, F1)
+
+```
+POST /dependencias
+{"origen": "PRD-TOSTADAS", "destino": "PRC-HORNEAR"}
+```
+
+Conecta dos elementos **que ya existen** con la relación `origen REQUIERE destino`.
+
+| Situación | HTTP |
+|---|---|
+| Dependencia creada | 201 (devuelve la arista) |
+| `origen` o `destino` no existen | 404 |
+| La dependencia ya está registrada | 409 |
+| La regla de capas no lo permite, o faltan datos | 422 |
+
+Pares de capas permitidos (`origen → destino`): `producto → insumo`, `producto → proceso`,
+`proceso → proceso`, `proceso → insumo`, `insumo → proveedor`.
+
+**Los ciclos no se rechazan.** Con `proceso → proceso` se puede formar un ciclo
+(ej. Amasar → Hornear → Amasar). Eso se acepta a propósito: la F3 debe detectarlo y reportarlo.

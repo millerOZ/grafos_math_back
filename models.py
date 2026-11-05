@@ -1,7 +1,7 @@
 from typing import Literal, Optional, List
 from pydantic import BaseModel, Field
 
-Capa = Literal["producto", "insumo", "proveedor"]
+Capa = Literal["producto", "proceso", "insumo", "proveedor"]
 
 
 class Nodo(BaseModel):
@@ -28,6 +28,14 @@ class ProveedorCreate(BaseModel):
     categoria: Optional[str] = None
 
 
+class ProcesoCreate(BaseModel):
+    """Paso interno de producción (amasar, hornear...). Se conecta luego con POST /dependencias."""
+
+    id: str = Field(min_length=1)
+    nombre: str = Field(min_length=1)
+    categoria: Optional[str] = None
+
+
 class InsumoCreate(BaseModel):
     id: str
     nombre: str
@@ -40,6 +48,13 @@ class ProductoCreate(BaseModel):
     nombre: str
     categoria: Optional[str] = None
     insumo_ids: List[str] = Field(min_length=1)
+
+
+class DependenciaCreate(BaseModel):
+    """Conecta dos elementos ya existentes: `origen` REQUIERE `destino`."""
+
+    origen: str = Field(min_length=1)
+    destino: str = Field(min_length=1)
 
 
 # --- Disponibilidad e impacto sobre la red de abastecimiento ---
