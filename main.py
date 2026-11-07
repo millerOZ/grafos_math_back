@@ -3,9 +3,28 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from data import agregar_arista, agregar_nodo, buscar_nodo, existe_nodo, MOCK_GRAFO
+from data import (
+    agregar_arista,
+    agregar_nodo,
+    buscar_nodo,
+    capas_permitidas,
+    existe_arista,
+    existe_nodo,
+    MOCK_GRAFO,
+)
 from impacto import consultar_impacto
-from models import Arista, ImpactoResponse, InsumoCreate, Nodo, ProductoCreate, ProveedorCreate
+from orden import consultar_orden_produccion
+from models import (
+    Arista,
+    DependenciaCreate,
+    ImpactoResponse,
+    InsumoCreate,
+    Nodo,
+    OrdenProduccionResponse,
+    ProcesoCreate,
+    ProductoCreate,
+    ProveedorCreate,
+)
 
 app = FastAPI()
 
@@ -32,6 +51,11 @@ def read_root():
 @app.get("/productos", response_model=List[Nodo])
 def listar_productos():
     return [nodo for nodo in MOCK_GRAFO.nodos if nodo.capa == "producto"]
+
+
+@app.get("/procesos", response_model=List[Nodo])
+def listar_procesos():
+    return [nodo for nodo in MOCK_GRAFO.nodos if nodo.capa == "proceso"]
 
 
 @app.get("/insumos", response_model=List[Nodo])
@@ -70,12 +94,41 @@ def obtener_impacto(elemento_id: str):
     return resultado
 
 
+@app.get("/orden-produccion", response_model=OrdenProduccionResponse)
+def obtener_orden_produccion():
+    """
+    Responde en qué orden se preparan los procesos internos o, si las
+    dependencias se contradicen, qué ciclo lo impide.
+
+    Casos en el cuerpo (`caso`), siempre HTTP 200:
+      - sin_procesos  → no hay procesos registrados
+      - orden_valido  → ver `etapas` y `planes`
+      - ciclo         → ver `ciclos`; `etapas` es null (no hay orden falso)
+    """
+    return consultar_orden_produccion(MOCK_GRAFO)
+
+
 @app.post("/proveedores", response_model=Nodo, status_code=201)
 def crear_proveedor(datos: ProveedorCreate):
     if existe_nodo(datos.id):
         raise HTTPException(status_code=409, detail=f"Ya existe un nodo con id '{datos.id}'")
 
     nodo = Nodo(id=datos.id, nombre=datos.nombre, capa="proveedor", categoria=datos.categoria)
+    agregar_nodo(nodo)
+    return nodo
+
+
+@app.post("/procesos", response_model=Nodo, status_code=201)
+def crear_proceso(datos: ProcesoCreate):
+    """
+    Crea un proceso interno sin conexiones. Sus dependencias
+    (producto -> proceso, proceso -> proceso, proceso -> insumo)
+    se registran después con POST /dependencias.
+    """
+    if existe_nodo(datos.id):
+        raise HTTPException(status_code=409, detail=f"Ya existe un nodo con id '{datos.id}'")
+
+    nodo = Nodo(id=datos.id, nombre=datos.nombre, capa="proceso", categoria=datos.categoria)
     agregar_nodo(nodo)
     return nodo
 
@@ -113,6 +166,39 @@ def crear_producto(datos: ProductoCreate):
 
     nodo = Nodo(id=datos.id, nombre=datos.nombre, capa="producto", categoria=datos.categoria)
     agregar_nodo(nodo)
-    for insumo in insumos:
+    for insumo in insumos: 
         agregar_arista(origen=nodo.id, destino=insumo.id)
     return nodo
+
+
+@app.post("/dependencias", response_model=Arista, status_code=201)
+def crear_dependencia(datos: DependenciaCreate):
+    """
+    Registra "origen REQUIERE destino" entre dos elementos que ya existen.
+
+    - 404 si origen o destino no existen.
+    - 409 si la dependencia ya está registrada.
+    - 422 si la regla de capas no lo permite (ej. proveedor -> producto).
+
+    No rechaza ciclos: la detección y el reporte de ciclos es tarea de la F3.
+    """
+    origen = buscar_nodo(datos.origen)
+    if origen is None:
+        raise HTTPException(status_code=404, detail=f"No existe el elemento origen '{datos.origen}'")
+    destino = buscar_nodo(datos.destino)
+    if destino is None:
+        raise HTTPException(status_code=404, detail=f"No existe el elemento destino '{datos.destino}'")
+
+    if existe_arista(origen.id, destino.id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"La dependencia '{origen.id}' -> '{destino.id}' ya existe",
+        )
+
+    if not capas_permitidas(origen.capa, destino.capa):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Un {origen.capa} no puede requerir un {destino.capa} ('{origen.id}' -> '{destino.id}')",
+        )
+
+    return agregar_arista(origen=origen.id, destino=destino.id)
