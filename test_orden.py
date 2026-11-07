@@ -1,7 +1,7 @@
 import unittest
 
 from data import MOCK_GRAFO
-from main import crear_dependencia, obtener_orden_produccion
+from main import crear_dependencia, eliminar_dependencia, obtener_orden_produccion
 from models import DependenciaCreate, Grafo
 from orden import consultar_orden_produccion
 from test_dependencias import GrafoAisladoTestCase
@@ -149,6 +149,17 @@ class TestAceptacionEndpoint(GrafoAisladoTestCase):
         self.assertIsNone(r.etapas)
         pan = next(p for p in r.planes if p.producto.id == "PRD-PAN")
         self.assertIsNone(pan.etapas)
+
+    def test_quitar_una_dependencia_del_ciclo_recupera_el_orden(self):
+        # Flujo de la demo: se carga la contradicción, se reporta y se corrige quitándola.
+        arista = crear_dependencia(DependenciaCreate(origen="PRC-AMASAR", destino="PRC-HORNEAR"))
+        self.assertEqual(obtener_orden_produccion().caso, "ciclo")
+
+        eliminar_dependencia(arista.id)
+
+        r = obtener_orden_produccion()
+        self.assertEqual(r.caso, "orden_valido")
+        self.assertEqual(r.etapas, [["PRC-AMASAR"], ["PRC-FERMENTAR"], ["PRC-HORNEAR"], ["PRC-TAJAR"], ["PRC-EMPACAR"]])
 
 
 if __name__ == "__main__":

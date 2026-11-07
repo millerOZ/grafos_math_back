@@ -108,3 +108,10 @@ def agregar_arista(origen: str, destino: str) -> Arista:
     arista = Arista(id=siguiente_arista_id(), origen=origen, destino=destino, tipo="REQUIERE")
     MOCK_GRAFO.aristas.append(arista)
     return arista
+
+def quitar_arista(id: str) -> Optional[Arista]:
+    """Quita la arista con ese id y la devuelve; None si no existe."""
+    arista = next((a for a in MOCK_GRAFO.aristas if a.id == id), None)
+    if arista is not None:
+        MOCK_GRAFO.aristas.remove(arista)
+    return arista

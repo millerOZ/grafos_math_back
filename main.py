@@ -11,6 +11,7 @@ from data import (
     existe_arista,
     existe_nodo,
     MOCK_GRAFO,
+    quitar_arista,
 )
 from impacto import consultar_impacto
 from orden import consultar_orden_produccion
@@ -202,3 +203,19 @@ def crear_dependencia(datos: DependenciaCreate):
         )
 
     return agregar_arista(origen=origen.id, destino=destino.id)
+
+
+@app.delete("/dependencias/{arista_id}", response_model=Arista)
+def eliminar_dependencia(arista_id: str):
+    """
+    Quita una dependencia por su id y devuelve la arista eliminada.
+
+    Sirve para corregir una contradicción: si GET /orden-produccion reporta
+    un ciclo, quitar una de sus dependencias lo rompe.
+
+    - 404 si no existe una dependencia con ese id.
+    """
+    arista = quitar_arista(arista_id)
+    if arista is None:
+        raise HTTPException(status_code=404, detail=f"No existe la dependencia '{arista_id}'")
+    return arista

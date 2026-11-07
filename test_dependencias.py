@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from data import MOCK_GRAFO
-from main import crear_dependencia, crear_proceso, listar_procesos
+from main import crear_dependencia, crear_proceso, eliminar_dependencia, listar_procesos
 from models import DependenciaCreate, ProcesoCreate
 
 
@@ -105,6 +105,31 @@ class TestCrearDependencia(GrafoAisladoTestCase):
         self.post("PRC-PRUEBA-B", "PRC-PRUEBA-A")
         self.post("PRC-PRUEBA-A", "PRC-PRUEBA-A")
         self.assertTrue(any(a.origen == "PRC-PRUEBA-B" and a.destino == "PRC-PRUEBA-A" for a in MOCK_GRAFO.aristas))
+
+
+class TestEliminarDependencia(GrafoAisladoTestCase):
+    def test_quita_la_arista_y_la_devuelve(self):
+        arista = crear_dependencia(DependenciaCreate(origen="PRD-GALLETA", destino="INS-LEVADURA"))
+
+        quitada = eliminar_dependencia(arista.id)
+
+        self.assertEqual(quitada, arista)
+        self.assertNotIn(arista, MOCK_GRAFO.aristas)
+
+    def test_dependencia_inexistente(self):
+        total = len(MOCK_GRAFO.aristas)
+        with self.assertRaises(HTTPException) as ctx:
+            eliminar_dependencia("e999")
+        self.assertEqual(ctx.exception.status_code, 404)
+        self.assertEqual(len(MOCK_GRAFO.aristas), total)
+
+    def test_los_ids_siguen_siendo_unicos_despues_de_quitar(self):
+        arista = crear_dependencia(DependenciaCreate(origen="PRD-GALLETA", destino="INS-LEVADURA"))
+        eliminar_dependencia(arista.id)
+        nueva = crear_dependencia(DependenciaCreate(origen="PRD-GALLETA", destino="INS-LEVADURA"))
+
+        self.assertEqual(len({a.id for a in MOCK_GRAFO.aristas}), len(MOCK_GRAFO.aristas))
+        self.assertIn(nueva, MOCK_GRAFO.aristas)
 
 
 if __name__ == "__main__":

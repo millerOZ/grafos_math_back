@@ -188,6 +188,19 @@ Pares de capas permitidos (`origen → destino`): `producto → insumo`, `produc
 **Los ciclos no se rechazan.** Con `proceso → proceso` se puede formar un ciclo
 (ej. Amasar → Hornear → Amasar). Eso se acepta a propósito: la F3 debe detectarlo y reportarlo.
 
+### Quitar una dependencia
+
+```
+DELETE /dependencias/{id}        ej. DELETE /dependencias/e27
+```
+
+Quita la arista con ese id (el que devuelve `POST /dependencias` o `GET /aristas`) y la
+devuelve (200). Si no existe, 404. Es la forma de **corregir un ciclo**: basta con quitar
+una de sus dependencias para que `GET /orden-produccion` vuelva a dar un orden válido.
+
+Los datos viven en memoria: lo que se agrega o quita en Render dura hasta que el servicio
+se reinicia. Por eso la demo debe terminar quitando la dependencia que formó el ciclo.
+
 ---
 
 ## Orden y ciclos de producción (F3)
@@ -327,3 +340,5 @@ lo usan conservan su orden.
 - `GET /orden-produccion` → `orden_valido` (Amasar, Fermentar, Hornear, Tajar, Empacar)
 - `POST /dependencias {"origen": "PRC-AMASAR", "destino": "PRC-HORNEAR"}` y de nuevo
   `GET /orden-produccion` → `ciclo` (Amasar necesita Hornear, Hornear necesita Fermentar…)
+- `DELETE /dependencias/<id devuelto por el POST>` y de nuevo `GET /orden-produccion` →
+  `orden_valido`: la contradicción quedó corregida.
