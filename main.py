@@ -13,12 +13,14 @@ from data import (
     MOCK_GRAFO,
 )
 from impacto import consultar_impacto
+from orden import consultar_orden_produccion
 from models import (
     Arista,
     DependenciaCreate,
     ImpactoResponse,
     InsumoCreate,
     Nodo,
+    OrdenProduccionResponse,
     ProcesoCreate,
     ProductoCreate,
     ProveedorCreate,
@@ -90,6 +92,20 @@ def obtener_impacto(elemento_id: str):
     if resultado.caso == "inexistente":
         raise HTTPException(status_code=404, detail=resultado.mensaje)
     return resultado
+
+
+@app.get("/orden-produccion", response_model=OrdenProduccionResponse)
+def obtener_orden_produccion():
+    """
+    Responde en qué orden se preparan los procesos internos o, si las
+    dependencias se contradicen, qué ciclo lo impide.
+
+    Casos en el cuerpo (`caso`), siempre HTTP 200:
+      - sin_procesos  → no hay procesos registrados
+      - orden_valido  → ver `etapas` y `planes`
+      - ciclo         → ver `ciclos`; `etapas` es null (no hay orden falso)
+    """
+    return consultar_orden_produccion(MOCK_GRAFO)
 
 
 @app.post("/proveedores", response_model=Nodo, status_code=201)
