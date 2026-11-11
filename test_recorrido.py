@@ -79,8 +79,24 @@ class TestConsultarImpacto(unittest.TestCase):
         niveles = [(n.id, n.nivel) for n in resultado.afectados]
         self.assertEqual(niveles, [
             ("INS-HARINA", 1), ("INS-AZUCAR", 1), ("INS-LEVADURA", 1),
-            ("PRD-PAN", 2), ("PRD-GALLETA", 2), ("PRD-PONQUE", 2), ("PRD-TOSTADAS", 2),
+            ("PRD-GALLETA", 2), ("PRD-PONQUE", 2), ("PRD-TOSTADAS", 2), ("PRC-AMASAR", 2),
+            ("PRC-FERMENTAR", 3), ("PRC-HORNEAR", 4), ("PRC-TAJAR", 5), ("PRC-EMPACAR", 6),
+            ("PRD-PAN", 7),
         ])
+
+    def test_falla_recorre_la_cadena_de_procesos(self):
+        resultado = consultar_impacto(MOCK_GRAFO, "INS-LEVADURA")
+
+        pan = next(n for n in resultado.afectados if n.id == "PRD-PAN")
+        self.assertEqual(pan.camino, [
+            "INS-LEVADURA", "PRC-AMASAR", "PRC-FERMENTAR", "PRC-HORNEAR", "PRC-TAJAR", "PRC-EMPACAR", "PRD-PAN",
+        ])
+
+    def test_nueva_arista_no_repite_ids(self):
+        from data import siguiente_arista_id
+
+        ids = {a.id for a in MOCK_GRAFO.aristas}
+        self.assertNotIn(siguiente_arista_id(), ids)
 
 
 if __name__ == "__main__":
