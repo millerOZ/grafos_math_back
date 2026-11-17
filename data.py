@@ -65,6 +65,23 @@ MOCK_GRAFO = Grafo(
     ],
 )
 
+# Copia del estado inicial, tomada antes de que la API modifique el grafo.
+# POST /demo/reset la usa para volver siempre al mismo punto de partida.
+_GRAFO_INICIAL = MOCK_GRAFO.model_copy(deep=True)
+
+
+def reiniciar_grafo() -> None:
+    """
+    Vuelve MOCK_GRAFO a los datos definidos en este archivo.
+
+    Se reemplaza el contenido de las listas en vez de reasignar MOCK_GRAFO,
+    porque otros módulos lo importan por nombre y seguirían viendo el objeto viejo.
+    """
+    copia = _GRAFO_INICIAL.model_copy(deep=True)
+    MOCK_GRAFO.nodos[:] = copia.nodos
+    MOCK_GRAFO.aristas[:] = copia.aristas
+
+
 # Regla de capas: pares (capa_origen, capa_destino) permitidos para "origen REQUIERE destino".
 # proceso -> proceso permite encadenar procesos; eso puede formar ciclos, y a propósito
 # no se rechazan aquí: la F3 (orden y ciclos) los detecta y reporta.

@@ -32,10 +32,13 @@ class TestCrearProceso(GrafoAisladoTestCase):
 
     def test_id_repetido(self):
         crear_proceso(ProcesoCreate(id="PRC-GLASEAR", nombre="Glasear"))
-        for id_repetido in ["PRC-GLASEAR", "INS-HARINA"]:  # también choca con otras capas
+        for id_repetido in ["PRC-GLASEAR", "PRC-AMASAR"]:  # creado en la prueba y de los datos
             with self.assertRaises(HTTPException) as ctx:
                 crear_proceso(ProcesoCreate(id=id_repetido, nombre="Otro"))
             self.assertEqual(ctx.exception.status_code, 409)
+        # Un id de otra capa ya no llega a chocar: el prefijo de la capa lo rechaza antes (422).
+        with self.assertRaises(ValidationError):
+            ProcesoCreate(id="INS-HARINA", nombre="Otro")
 
     def test_datos_mal_formados(self):
         with self.assertRaises(ValidationError):
@@ -72,10 +75,17 @@ class TestCrearDependencia(GrafoAisladoTestCase):
             self.assertIn(arista, MOCK_GRAFO.aristas)
 
     def test_origen_inexistente(self):
-        self.assertIn("origen", self.assert_error(404, "NO-EXISTE", "INS-HARINA"))
+        self.assertIn("origen", self.assert_error(404, "PRD-NO-EXISTE", "INS-HARINA"))
 
     def test_destino_inexistente(self):
-        self.assertIn("destino", self.assert_error(404, "PRD-PAN", "NO-EXISTE"))
+        self.assertIn("destino", self.assert_error(404, "PRD-PAN", "INS-NO-EXISTE"))
+
+    def test_id_mal_formado_es_422_no_404(self):
+        # Mismo criterio que GET /impacto: un id mal escrito no se confunde con uno que no existe.
+        for origen, destino in [("NO-EXISTE", "INS-HARINA"), ("PRD-PAN", "ins-harina"), ("PRD PAN", "INS-HARINA")]:
+            with self.subTest(origen=origen, destino=destino):
+                with self.assertRaises(ValidationError):
+                    DependenciaCreate(origen=origen, destino=destino)
 
     def test_arista_repetida(self):
         total = len(MOCK_GRAFO.aristas)

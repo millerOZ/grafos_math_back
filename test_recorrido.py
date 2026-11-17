@@ -92,6 +92,30 @@ class TestConsultarImpacto(unittest.TestCase):
             "INS-LEVADURA", "PRC-AMASAR", "PRC-FERMENTAR", "PRC-HORNEAR", "PRC-TAJAR", "PRC-EMPACAR", "PRD-PAN",
         ])
 
+    def test_id_invalido_no_se_confunde_con_inexistente(self):
+        for elemento_id in ["", "   ", " PRV-QUIM", "PRV QUIM", "prv-quim", "PRV-", "XYZ-HARINA", "PRVQUIM", "PRV-QUIM!"]:
+            with self.subTest(elemento_id=elemento_id):
+                resultado = consultar_impacto(MOCK_GRAFO, elemento_id)
+                self.assertEqual(resultado.caso, "id_invalido")
+                self.assertIsNone(resultado.origen)
+
+    def test_endpoint_impacto_codigos_http(self):
+        from fastapi import HTTPException
+
+        from main import obtener_impacto, obtener_impacto_sin_id
+
+        for llamada, codigo in [
+            (lambda: obtener_impacto_sin_id(), 422),
+            (lambda: obtener_impacto("PRV QUIM"), 422),
+            (lambda: obtener_impacto("prv-quim"), 422),
+            (lambda: obtener_impacto("PRV-NO-EXISTE"), 404),
+        ]:
+            with self.assertRaises(HTTPException) as ctx:
+                llamada()
+            self.assertEqual(ctx.exception.status_code, codigo)
+
+        self.assertEqual(obtener_impacto("PRV-QUIM").caso, "afecta_cadena")
+
     def test_nueva_arista_no_repite_ids(self):
         from data import siguiente_arista_id
 
