@@ -1,8 +1,14 @@
 import unittest
 
 from data import MOCK_GRAFO
-from main import crear_dependencia, eliminar_dependencia, obtener_orden_produccion
-from models import DependenciaCreate, Grafo
+from main import (
+    crear_dependencia,
+    crear_proceso,
+    eliminar_dependencia,
+    obtener_orden_produccion,
+    restaurar_orden_produccion,
+)
+from models import DependenciaCreate, Grafo, ProcesoCreate
 from orden import consultar_orden_produccion
 from test_dependencias import GrafoAisladoTestCase
 from topologico import buscar_ciclos, ordenar_por_etapas
@@ -160,6 +166,63 @@ class TestAceptacionEndpoint(GrafoAisladoTestCase):
         r = obtener_orden_produccion()
         self.assertEqual(r.caso, "orden_valido")
         self.assertEqual(r.etapas, [["PRC-AMASAR"], ["PRC-FERMENTAR"], ["PRC-HORNEAR"], ["PRC-TAJAR"], ["PRC-EMPACAR"]])
+
+
+class TestRestaurarOrden(GrafoAisladoTestCase):
+    def dep(self, origen, destino):
+        return crear_dependencia(DependenciaCreate(origen=origen, destino=destino))
+
+    def test_sin_ciclo_no_quita_nada(self):
+        antes = list(MOCK_GRAFO.aristas)
+        r = restaurar_orden_produccion()
+        self.assertEqual(r.quitadas, [])
+        self.assertEqual(r.orden.caso, "orden_valido")
+        self.assertEqual(MOCK_GRAFO.aristas, antes)
+
+    def test_quita_la_dependencia_agregada_que_cierra_el_ciclo(self):
+        cierre = self.dep("PRC-AMASAR", "PRC-HORNEAR")
+        self.assertEqual(obtener_orden_produccion().caso, "ciclo")
+
+        r = restaurar_orden_produccion()
+
+        self.assertEqual([a.id for a in r.quitadas], [cierre.id])
+        self.assertEqual(r.orden.caso, "orden_valido")
+        self.assertEqual(r.orden.etapas, [["PRC-AMASAR"], ["PRC-FERMENTAR"], ["PRC-HORNEAR"], ["PRC-TAJAR"], ["PRC-EMPACAR"]])
+
+    def test_no_toca_dependencias_iniciales_ni_agregadas_sin_ciclo(self):
+        crear_proceso(ProcesoCreate(id="PRC-GLASEAR", nombre="Glasear"))
+        valida = self.dep("PRC-GLASEAR", "PRC-HORNEAR")       # agregada, sin ciclo
+        producto = self.dep("PRD-PONQUE", "PRC-GLASEAR")      # producto -> proceso
+        self.dep("PRC-AMASAR", "PRC-TAJAR")                   # cierra un ciclo
+
+        r = restaurar_orden_produccion()
+
+        ids = {a.id for a in MOCK_GRAFO.aristas}
+        self.assertIn(valida.id, ids)
+        self.assertIn(producto.id, ids)
+        self.assertTrue({"e20", "e22", "e23", "e24"} <= ids)  # cadena inicial del pan
+        self.assertEqual([(a.origen, a.destino) for a in r.quitadas], [("PRC-AMASAR", "PRC-TAJAR")])
+        self.assertEqual(r.orden.caso, "orden_valido")
+
+    def test_varios_ciclos_y_autociclo(self):
+        crear_proceso(ProcesoCreate(id="PRC-GLASEAR", nombre="Glasear"))
+        crear_proceso(ProcesoCreate(id="PRC-DECORAR", nombre="Decorar"))
+        self.dep("PRC-GLASEAR", "PRC-DECORAR")
+        self.dep("PRC-DECORAR", "PRC-GLASEAR")
+        self.dep("PRC-TAJAR", "PRC-TAJAR")
+        self.assertEqual(len(obtener_orden_produccion().ciclos), 2)
+
+        r = restaurar_orden_produccion()
+
+        self.assertEqual(len(r.quitadas), 3)
+        self.assertEqual(r.orden.caso, "orden_valido")
+
+    def test_ciclo_si_se_borro_una_dependencia_inicial_y_se_agrego_al_reves(self):
+        # Fermentar requiere Amasar (inicial); se agrega Amasar requiere Fermentar.
+        nueva = self.dep("PRC-AMASAR", "PRC-FERMENTAR")
+        r = restaurar_orden_produccion()
+        self.assertEqual([a.id for a in r.quitadas], [nueva.id])
+        self.assertIn("e24", {a.id for a in MOCK_GRAFO.aristas})
 
 
 if __name__ == "__main__":

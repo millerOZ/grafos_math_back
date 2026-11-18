@@ -30,8 +30,10 @@ Contrato de respuesta (`OrdenProduccionResponse`):
 
 from __future__ import annotations
 
-from models import Ciclo, Grafo, Nodo, NodoImpactado, OrdenProduccionResponse, PlanProducto
-from topologico import Requisitos, alcanzables, buscar_ciclos, ordenar_por_etapas
+from typing import List, Set, Tuple
+
+from models import Arista, Ciclo, Grafo, Nodo, NodoImpactado, OrdenProduccionResponse, PlanProducto
+from topologico import Requisitos, alcanzables, buscar_ciclos, componentes_con_ciclo, ordenar_por_etapas
 
 
 def _a_nodo_impactado(nodo: Nodo) -> NodoImpactado:
@@ -43,6 +45,40 @@ def _describir_ciclo(ids: list[str], nombres: dict[str, str]) -> str:
         return f"{nombres[ids[0]]} se necesita a sí mismo: esa dependencia sobra."
     frases = [f"{nombres[id]} necesita {nombres[ids[(i + 1) % len(ids)]]}" for i, id in enumerate(ids)]
     return ", ".join(frases) + ": ninguno puede empezar primero."
+
+
+def dependencias_a_quitar(grafo: Grafo, iniciales: Set[Tuple[str, str]]) -> List[Arista]:
+    """
+    Dependencias proceso -> proceso que hay que quitar para volver a un orden válido.
+
+    Son las que cumplen las dos condiciones:
+      - no estaban en los datos iniciales (`iniciales`, pares origen/destino), y
+      - unen dos procesos del mismo grupo con ciclo (Tarjan).
+
+    Por qué alcanza: toda arista de un ciclo une dos procesos del mismo grupo, y
+    los datos iniciales no tienen ciclos, así que cada ciclo usa al menos una
+    dependencia agregada. Al quitarlas todas no queda ningún ciclo. Lo agregado que
+    no forma parte de un ciclo, y el resto del catálogo, no se toca.
+    """
+    procesos = [nodo.id for nodo in grafo.nodos if nodo.capa == "proceso"]
+    es_proceso = set(procesos)
+    requisitos: Requisitos = {id: [] for id in procesos}
+    for arista in grafo.aristas:
+        if arista.origen in es_proceso and arista.destino in es_proceso:
+            requisitos[arista.origen].append(arista.destino)
+
+    grupo = {}
+    for i, componente in enumerate(componentes_con_ciclo(procesos, requisitos)):
+        for id in componente:
+            grupo[id] = i
+
+    return [
+        a
+        for a in grafo.aristas
+        if a.origen in grupo
+        and grupo.get(a.destino) == grupo[a.origen]
+        and (a.origen, a.destino) not in iniciales
+    ]
 
 
 def consultar_orden_produccion(grafo: Grafo) -> OrdenProduccionResponse:

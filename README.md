@@ -14,7 +14,7 @@ algo falla y en qué orden se prepara la producción.
 2. [Instalación](#instalación)
 3. [Ejecución](#ejecución)
 4. [Endpoints](#endpoints)
-5. [Decisiones de diseño](#decisiones-de-diseño)
+5. [Decisiones de diseño](#decisiones-de-diseño) — incluye [complejidad y estructuras de datos](#9-complejidad-aproximada-y-estructuras-de-datos)
 
 ---
 
@@ -140,6 +140,7 @@ En Render, como *Web Service* de Python:
 | `DELETE /dependencias/{id}` | Quitar una dependencia (para romper un ciclo) | 200 · 404 |
 | `GET /impacto/{id}` | Qué se afecta si ese elemento falla | 200 · 404 · 422 |
 | `GET /orden-produccion` | Orden de preparación o ciclos | 200 |
+| `POST /orden-produccion/restaurar` | Volver a un orden válido quitando solo las dependencias agregadas que forman ciclos | 200 |
 | `POST /demo/reset` | Volver a los datos de `data.py` (requiere clave) | 200 · 403 |
 
 ### Crear elementos
@@ -227,6 +228,24 @@ Para probarlo:
 2. `POST /dependencias {"origen": "PRC-AMASAR", "destino": "PRC-HORNEAR"}` → otra vez
    `GET /orden-produccion` → `ciclo` ("Amasar necesita Hornear, Hornear necesita Fermentar…").
 3. `DELETE /dependencias/<id devuelto en el paso 2>` → vuelve a `orden_valido`.
+
+#### Volver al orden válido sin reiniciar la demo
+
+```http
+POST /orden-produccion/restaurar
+```
+
+Quita de una vez las dependencias `proceso → proceso` que **no estaban en los datos
+iniciales** y que **unen dos procesos del mismo grupo con ciclo** (Tarjan). Devuelve
+`{"quitadas": [...], "orden": <GET /orden-produccion>}`. Si no hay ciclo, `quitadas` es `[]`.
+
+No toca proveedores, insumos, productos ni las dependencias agregadas que no causan ciclos,
+a diferencia de `POST /demo/reset`, que borra todo lo registrado. Por eso no pide clave.
+
+**Por qué siempre deja un orden válido:** toda arista de un ciclo une procesos del mismo
+grupo de Tarjan, y los datos iniciales no tienen ciclos, así que cada ciclo usa al menos una
+dependencia agregada. Al quitarlas todas no queda ningún ciclo. Costo: O(P + E), un Tarjan
+más una pasada por las aristas.
 
 ### Grafo completo y reinicio de la demo
 
@@ -440,3 +459,63 @@ El front necesitaba `/productos`, `/procesos`, `/insumos`, `/proveedores` y `/ar
 dibujar la red. `GET /grafo` lo entrega en una sola respuesta coherente (todo del mismo
 instante), y el front lo vuelve a pedir después de cada cambio en lugar de armar aristas por
 su cuenta. Así los ids de las aristas siempre son los que asignó el back.
+
+### 9. Complejidad aproximada y estructuras de datos
+
+Notación: **V** = elementos (nodos), **E** = dependencias (aristas), **P** = procesos,
+**Eₚ** = dependencias entre procesos, **R** = productos. Con los datos de la demo todo es
+instantáneo (unas decenas de nodos); la tabla dice cómo crecería el costo con una red mayor.
+
+#### Estructuras escogidas
+
+| Estructura | Dónde | Por qué |
+|---|---|---|
+| **Listas de nodos y aristas** (`Grafo`) | `data.py`, `GET /grafo` | Es el formato que viaja por la API y que el front dibuja. Agregar es O(1) y es fácil de reiniciar y serializar |
+| **Lista de adyacencia invertida** `dict[id, list[id]]` (quién me requiere) | `recorrido.construir_adyacencia_impacto` | El impacto va de la causa a la consecuencia; invertir la flecha una vez evita condicionales y deja ver los vecinos de un nodo en O(grado) |
+| **Lista de adyacencia de requisitos entre procesos** `dict[id, list[id]]` | `orden.py` → `topologico.py` | Solo los procesos pueden formar ciclos (decisión 5), así que Kahn y Tarjan trabajan sobre un grafo más pequeño |
+| **Cola** (`collections.deque`) | BFS de impacto y ciclo más corto | Sacar por delante es O(1); garantiza el recorrido por niveles |
+| **Diccionario `padres`** | BFS | Sirve a la vez de conjunto de visitados (`in` en O(1)) y para reconstruir el camino de cada afectado |
+| **Diccionario de pendientes** (grado de entrada) | Kahn | Saber en O(1) cuándo un proceso queda sin requisitos |
+| **Pila + `indice`/`bajo`** | Tarjan | La pila guarda los procesos del grupo en construcción; `bajo` detecta cuándo se cierra un ciclo |
+| **Conjuntos** (`set`) | `alcanzables`, `en_pila`, filtros | Pertenencia en O(1) |
+
+#### Complejidad por consulta
+
+| Operación | Costo | Detalle |
+|---|---|---|
+| Armar la adyacencia de impacto | O(V + E) | Un recorrido por nodos y otro por aristas |
+| BFS de impacto | O(V + E) | Cada nodo entra una vez a la cola y cada arista se mira una vez |
+| Reconstruir los caminos de los afectados | O(V · h) | h = profundidad de la red (≤ 5 niveles con las capas actuales); en la práctica O(V) |
+| **`GET /impacto/{id}` total** | **O(V + E)** con h acotada | |
+| Armar requisitos entre procesos | O(E · d) | d = requisitos por proceso; revisa que no se repitan |
+| Kahn por etapas | O(P + Eₚ) | Cada proceso entra una vez a una etapa y cada dependencia se descuenta una vez |
+| Tarjan | O(P + Eₚ) | Cada proceso y cada dependencia se visitan una vez |
+| Ciclo más corto (BFS por componente) | O(P + Eₚ) en total | Cada BFS se queda dentro de su componente |
+| Plan por producto (`alcanzables` + Kahn) | O(R · (E + P + Eₚ)) | Para cada producto se buscan sus procesos y se ordenan |
+| **`GET /orden-produccion` total** | **O(R · (E + P + Eₚ))** | Domina el plan por producto; Kahn y Tarjan solos son lineales |
+
+#### Operaciones del catálogo
+
+Los nodos y aristas están en **listas**, así que buscar por id es una búsqueda lineal:
+
+| Operación | Costo |
+|---|---|
+| `buscar_nodo` / `existe_nodo` (409, 404) | O(V) |
+| `existe_arista` (dependencia repetida, 409) | O(E) |
+| `quitar_arista`, `siguiente_arista_id` | O(E) |
+| `POST /productos` con k insumos | O(k · V) |
+| Validar formato del id (`ids.py`) | O(largo del id) |
+
+Se aceptó la búsqueda lineal porque la red es pequeña y las listas mantienen el mismo orden
+que se muestra en la interfaz. Si la red creciera a miles de elementos, el cambio sería
+agregar un índice `dict[id, Nodo]` y un `set` de pares `(origen, destino)`, que dejan esas
+búsquedas en O(1) sin cambiar los algoritmos.
+
+**Límites conocidos:**
+- Tarjan está escrito con recursión: con más de ~1000 procesos encadenados se pasaría del
+  límite de recursión de Python. Para la demo no aplica; la solución sería la versión
+  iterativa con pila explícita.
+- **Corrección hecha al revisar la complejidad:** el BFS revisaba `vecino not in visitados`
+  sobre una lista, lo que hacía cada revisión O(V) y el recorrido O(V · E). Ahora revisa el
+  diccionario `padres` (O(1)) y el recorrido es O(V + E). El orden de visita no cambió y las
+  pruebas siguen pasando.

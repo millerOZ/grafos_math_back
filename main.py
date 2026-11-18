@@ -1,6 +1,26 @@
 import os
 import secrets
+from pathlib import Path
 from typing import List, Optional
+
+
+def _cargar_env_local(ruta: Path = Path(__file__).with_name(".env")) -> None:
+    """
+    Carga variables desde .env (solo para desarrollo local; el archivo está en
+    .gitignore). Las variables ya definidas en el entorno, como las de Render,
+    tienen prioridad y no se sobrescriben.
+    """
+    if not ruta.is_file():
+        return
+    for linea in ruta.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+        clave, valor = linea.split("=", 1)
+        os.environ.setdefault(clave.strip(), valor.strip().strip("'\""))
+
+
+_cargar_env_local()
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,10 +34,11 @@ from data import (
     existe_nodo,
     MOCK_GRAFO,
     quitar_arista,
+    dependencias_iniciales,
     reiniciar_grafo,
 )
 from impacto import consultar_impacto
-from orden import consultar_orden_produccion
+from orden import consultar_orden_produccion, dependencias_a_quitar
 from models import (
     Arista,
     DependenciaCreate,
@@ -29,6 +50,7 @@ from models import (
     ProcesoCreate,
     ProductoCreate,
     ProveedorCreate,
+    RestaurarOrdenResponse,
 )
 
 app = FastAPI()
@@ -184,6 +206,24 @@ def obtener_orden_produccion():
       - ciclo         → ver `ciclos`; `etapas` es null (no hay orden falso)
     """
     return consultar_orden_produccion(MOCK_GRAFO)
+
+
+@app.post("/orden-produccion/restaurar", response_model=RestaurarOrdenResponse)
+def restaurar_orden_produccion():
+    """
+    Vuelve a un orden de producción válido sin reiniciar toda la demo.
+
+    Quita solo las dependencias proceso -> proceso que se agregaron después de
+    los datos iniciales y que forman parte de un ciclo. No toca proveedores,
+    insumos, productos ni las dependencias agregadas que no causan ciclos.
+    Si no hay ciclo, no quita nada.
+
+    Siempre 200; devuelve lo que se quitó y el orden resultante.
+    """
+    quitadas = dependencias_a_quitar(MOCK_GRAFO, dependencias_iniciales())
+    for arista in quitadas:
+        quitar_arista(arista.id)
+    return RestaurarOrdenResponse(quitadas=quitadas, orden=consultar_orden_produccion(MOCK_GRAFO))
 
 
 @app.post("/proveedores", response_model=Nodo, status_code=201)

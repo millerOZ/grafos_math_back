@@ -208,3 +208,16 @@ class OrdenProduccionResponse(BaseModel):
     en_ciclo: List[str] = []
     planes: List[PlanProducto] = []
     sin_procesos: List[NodoImpactado] = []
+
+
+class RestaurarOrdenResponse(BaseModel):
+    """
+    Resultado de POST /orden-produccion/restaurar.
+
+    - quitadas: dependencias proceso -> proceso que se quitaron (agregadas después
+      de los datos iniciales y que formaban un ciclo). Vacía si no había ciclo.
+    - orden: GET /orden-produccion después del cambio.
+    """
+
+    quitadas: List[Arista]
+    orden: OrdenProduccionResponse

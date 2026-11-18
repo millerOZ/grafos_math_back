@@ -14,6 +14,7 @@ del catálogo,
 
   - ordenar_por_etapas(ids, requisitos) -> etapas
   - buscar_ciclos(ids, requisitos)      -> ciclos
+  - componentes_con_ciclo(ids, requisitos) -> grupos de Tarjan que tienen ciclo
   - alcanzables(inicio, requisitos)     -> todo lo que hace falta desde `inicio`
 
 Por qué solo procesos
@@ -73,11 +74,10 @@ def ordenar_por_etapas(ids: List[Hashable], requisitos: Requisitos) -> List[List
     return etapas
 
 
-def buscar_ciclos(ids: List[Hashable], requisitos: Requisitos) -> List[List[Hashable]]:
+def componentes_con_ciclo(ids: List[Hashable], requisitos: Requisitos) -> List[List[Hashable]]:
     """
-    Componentes fuertemente conexas (Tarjan). Cada componente con más de un
-    elemento, o con uno que se requiere a sí mismo, contiene un ciclo; de cada
-    una se reporta el ciclo más corto que pasa por su primer elemento (según `ids`).
+    Componentes fuertemente conexas (Tarjan) que contienen un ciclo: las de más
+    de un elemento, o las de uno que se requiere a sí mismo.
     """
     contador = 0
     indice: Dict[Hashable, int] = {}
@@ -113,12 +113,19 @@ def buscar_ciclos(ids: List[Hashable], requisitos: Requisitos) -> List[List[Hash
         if id not in indice:
             visitar(id)
 
+    return [c for c in componentes if len(c) > 1 or c[0] in requisitos.get(c[0], [])]
+
+
+def buscar_ciclos(ids: List[Hashable], requisitos: Requisitos) -> List[List[Hashable]]:
+    """
+    De cada componente con ciclo (Tarjan) se reporta el ciclo más corto que pasa
+    por su primer elemento (según `ids`).
+    """
     orden = {id: i for i, id in enumerate(ids)}
     ciclos = []
-    for componente in componentes:
-        if len(componente) > 1 or componente[0] in requisitos.get(componente[0], []):
-            raiz = min(componente, key=lambda id: orden[id])
-            ciclos.append(ciclo_mas_corto(raiz, set(componente), requisitos))
+    for componente in componentes_con_ciclo(ids, requisitos):
+        raiz = min(componente, key=lambda id: orden[id])
+        ciclos.append(ciclo_mas_corto(raiz, set(componente), requisitos))
     ciclos.sort(key=lambda ciclo: orden[ciclo[0]])
     return ciclos
 

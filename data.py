@@ -70,6 +70,11 @@ MOCK_GRAFO = Grafo(
 _GRAFO_INICIAL = MOCK_GRAFO.model_copy(deep=True)
 
 
+def dependencias_iniciales() -> set:
+    """Pares (origen, destino) de las dependencias definidas en este archivo."""
+    return {(a.origen, a.destino) for a in _GRAFO_INICIAL.aristas}
+
+
 def reiniciar_grafo() -> None:
     """
     Vuelve MOCK_GRAFO a los datos definidos en este archivo.
