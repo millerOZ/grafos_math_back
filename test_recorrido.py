@@ -79,8 +79,48 @@ class TestConsultarImpacto(unittest.TestCase):
         niveles = [(n.id, n.nivel) for n in resultado.afectados]
         self.assertEqual(niveles, [
             ("INS-HARINA", 1), ("INS-AZUCAR", 1), ("INS-LEVADURA", 1),
-            ("PRD-PAN", 2), ("PRD-GALLETA", 2), ("PRD-PONQUE", 2), ("PRD-TOSTADAS", 2),
+            ("PRD-GALLETA", 2), ("PRD-PONQUE", 2), ("PRD-TOSTADAS", 2), ("PRC-AMASAR", 2),
+            ("PRC-FERMENTAR", 3), ("PRC-HORNEAR", 4), ("PRC-TAJAR", 5), ("PRC-EMPACAR", 6),
+            ("PRD-PAN", 7),
         ])
+
+    def test_falla_recorre_la_cadena_de_procesos(self):
+        resultado = consultar_impacto(MOCK_GRAFO, "INS-LEVADURA")
+
+        pan = next(n for n in resultado.afectados if n.id == "PRD-PAN")
+        self.assertEqual(pan.camino, [
+            "INS-LEVADURA", "PRC-AMASAR", "PRC-FERMENTAR", "PRC-HORNEAR", "PRC-TAJAR", "PRC-EMPACAR", "PRD-PAN",
+        ])
+
+    def test_id_invalido_no_se_confunde_con_inexistente(self):
+        for elemento_id in ["", "   ", " PRV-QUIM", "PRV QUIM", "prv-quim", "PRV-", "XYZ-HARINA", "PRVQUIM", "PRV-QUIM!"]:
+            with self.subTest(elemento_id=elemento_id):
+                resultado = consultar_impacto(MOCK_GRAFO, elemento_id)
+                self.assertEqual(resultado.caso, "id_invalido")
+                self.assertIsNone(resultado.origen)
+
+    def test_endpoint_impacto_codigos_http(self):
+        from fastapi import HTTPException
+
+        from main import obtener_impacto, obtener_impacto_sin_id
+
+        for llamada, codigo in [
+            (lambda: obtener_impacto_sin_id(), 422),
+            (lambda: obtener_impacto("PRV QUIM"), 422),
+            (lambda: obtener_impacto("prv-quim"), 422),
+            (lambda: obtener_impacto("PRV-NO-EXISTE"), 404),
+        ]:
+            with self.assertRaises(HTTPException) as ctx:
+                llamada()
+            self.assertEqual(ctx.exception.status_code, codigo)
+
+        self.assertEqual(obtener_impacto("PRV-QUIM").caso, "afecta_cadena")
+
+    def test_nueva_arista_no_repite_ids(self):
+        from data import siguiente_arista_id
+
+        ids = {a.id for a in MOCK_GRAFO.aristas}
+        self.assertNotIn(siguiente_arista_id(), ids)
 
 
 if __name__ == "__main__":

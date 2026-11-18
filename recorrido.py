@@ -51,7 +51,13 @@ def construir_adyacencia_impacto(grafo: Grafo) -> Adyacencia:
 
 
 def bfs(adyacencia: Adyacencia, inicio: Hashable) -> Tuple[List[Hashable], Dict[Hashable, Optional[Hashable]]]:
-    """Recorrido en anchura desde `inicio`. Devuelve (visitados, padres)."""
+    """
+    Recorrido en anchura desde `inicio`. Devuelve (visitados, padres).
+
+    `padres` (diccionario) hace de conjunto de visitados: preguntar `in` es O(1).
+    `visitados` (lista) solo guarda el orden de visita para la respuesta.
+    Así el recorrido es O(V + E).
+    """
     Q = deque([inicio])
     visitados = [inicio]
     padres: Dict[Hashable, Optional[Hashable]] = {inicio: None}
@@ -59,7 +65,7 @@ def bfs(adyacencia: Adyacencia, inicio: Hashable) -> Tuple[List[Hashable], Dict[
     while len(Q) != 0:
         actual = Q.popleft()
         for vecino in adyacencia.get(actual, []):
-            if vecino not in visitados:
+            if vecino not in padres:
                 visitados.append(vecino)
                 padres[vecino] = actual
                 Q.append(vecino)

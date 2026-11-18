@@ -21,7 +21,9 @@ API HTTP
 GET /impacto/{elemento_id}
 
 Contrato de respuesta (`ImpactoResponse`):
-  - inexistente       → el id no está en el catálogo
+  - id_invalido       → el id está vacío, tiene espacios o no sigue el
+                        formato PREFIJO-NOMBRE (no se busca en el catálogo)
+  - inexistente       → el id tiene buen formato pero no está en el catálogo
   - sin_dependencias  → existe, pero nadie más queda comprometido
   - afecta_cadena     → hay elementos alcanzados en la red
 
@@ -34,6 +36,7 @@ reconstruye por qué camino llega la falla a cada elemento afectado.
 
 from __future__ import annotations
 
+from ids import validar_formato_id
 from models import Grafo, ImpactoResponse, Nodo, NodoAfectado, NodoImpactado
 from recorrido import reconstruir_camino, recorrer_red
 
@@ -58,6 +61,10 @@ def consultar_impacto(grafo: Grafo, elemento_id: str) -> ImpactoResponse:
     Simula que `elemento_id` no está disponible y reporta el impacto
     sobre la cadena de abastecimiento de la panadería.
     """
+    motivo = validar_formato_id(elemento_id)
+    if motivo is not None:
+        return ImpactoResponse(origen=None, caso="id_invalido", mensaje=motivo)
+
     origen = _buscar(grafo, elemento_id)
 
     if origen is None:
